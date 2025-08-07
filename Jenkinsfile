@@ -10,6 +10,7 @@ pipeline {
     environment {
         TF_VAR_environment = "${params.ENVIRONMENT}"
         TF_VAR_region      = "${params.AWS_REGION}"
+        TF_VARS_FILE       = "envs/${params.ENVIRONMENT}/terraform.tfvars"
     }
 
     stages {
@@ -33,12 +34,12 @@ pipeline {
 
         stage('Terraform Plan') {
             steps {
-                bat '''
+                bat """
                     terraform plan ^
                     -var="environment=%TF_VAR_environment%" ^
                     -var="region=%TF_VAR_region%" ^
-                    -var-file="terraform.tfvars"
-                '''
+                    -var-file="%TF_VARS_FILE%"
+                """
             }
         }
 
@@ -46,19 +47,19 @@ pipeline {
             steps {
                 script {
                     if (params.DESTROY_INFRA) {
-                        bat '''
+                        bat """
                             terraform destroy -auto-approve ^
                             -var="environment=%TF_VAR_environment%" ^
                             -var="region=%TF_VAR_region%" ^
-                            -var-file="terraform.tfvars"
-                        '''
+                            -var-file="%TF_VARS_FILE%"
+                        """
                     } else {
-                        bat '''
+                        bat """
                             terraform apply -auto-approve ^
                             -var="environment=%TF_VAR_environment%" ^
                             -var="region=%TF_VAR_region%" ^
-                            -var-file="terraform.tfvars"
-                        '''
+                            -var-file="%TF_VARS_FILE%"
+                        """
                     }
                 }
             }
