@@ -1,36 +1,47 @@
 pipeline {
-    agent any
+  agent any
 
-    parameters {
-        choice(name: 'ENVIRONMENT', choices: ['dev', 'stg', 'prod'], description: 'Select environment')
-        choice(name: 'AWS_REGION', choices: ['us-east-1', 'us-west-1', 'ap-south-1'], description: 'Select AWS region')
+  parameters {
+    string(name: 'TF_VAR_environment', description: 'Enter environment (e.g., dev, stg, prod)')
+    string(name: 'TF_VAR_region', description: 'Enter AWS region (e.g., us-east-1)')
+    choice(name: 'ACTION', choices: ['plan', 'apply'], description: 'Choose Terraform action')
+  }
+
+  environment {
+    TF_VAR_environment = "${params.TF_VAR_environment}"
+    TF_VAR_region      = "${params.TF_VAR_region}"
+  }
+
+  stages {
+    stage('Terraform Init') {
+      steps {
+        bat """
+          terraform init ^
+            -backend-config=envs/%TF_VAR_environment%/backend.tfvars
+        """
+      }
     }
 
-    environment {
-        TF_VAR_environment = "${params.ENVIRONMENT}"
-        TF_VAR_region      = "${params.AWS_REGION}"
-    }
-
-    stages {
-        stage('Checkout') {
-            steps {
-                git url: 'https://github.com/nenavathsrinu/aws-static-website-infra.git', branch: 'main'
-            }
+    stage('Terraform Plan/Apply') {
+      steps {
+        script {
+          if (params.ACTION == 'plan') {
+            bat """
+              terraform plan ^
+                -var="environment=%TF_VAR_environment%" ^
+                -var="region=%TF_VAR_region%" ^
+                -var-file="envs/%TF_VAR_environment%/terraform.tfvars"
+            """
+          } else if (params.ACTION == 'apply') {
+            bat """
+              terraform apply -auto-approve ^
+                -var="environment=%TF_VAR_environment%" ^
+                -var="region=%TF_VAR_region%" ^
+                -var-file="envs/%TF_VAR_environment%/terraform.tfvars"
+            """
+          }
         }
-
-        stage('Terraform Apply') {
-            steps {
-                dir("envs/${params.ENVIRONMENT}") {
-                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
-                        bat """
-                        terraform init -reconfigure
-                        terraform validate
-                        terraform plan -var-file="terraform.tfvars" -var="region=${params.AWS_REGION}"
-                        terraform apply -auto-approve -var-file="terraform.tfvars" -var="region=${params.AWS_REGION}"
-                        """
-                    }
-                }
-            }
-        }
+      }
     }
+  }
 }
