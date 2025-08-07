@@ -60,3 +60,7 @@ module "logging" {
   env     = var.env
   tags    = local.common_tags
 }
+
+terraform {
+  backend "s3" {}
+}
