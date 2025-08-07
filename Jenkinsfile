@@ -10,7 +10,6 @@ pipeline {
     environment {
         TF_VAR_environment = "${params.ENVIRONMENT}"
         TF_VAR_region      = "${params.AWS_REGION}"
-        TF_VARS_FILE       = "envs/${params.ENVIRONMENT}/terraform.tfvars"
     }
 
     stages {
@@ -22,7 +21,9 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                bat 'terraform init'
+                withCredentials([usernamePassword(credentialsId: 'aws-credentials', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    bat 'terraform init'
+                }
             }
         }
 
@@ -34,32 +35,21 @@ pipeline {
 
         stage('Terraform Plan') {
             steps {
-                bat """
-                    terraform plan ^
-                    -var="environment=%TF_VAR_environment%" ^
-                    -var="region=%TF_VAR_region%" ^
-                    -var-file="%TF_VARS_FILE%"
-                """
+                withCredentials([usernamePassword(credentialsId: 'aws-credentials', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    bat 'terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
+                }
             }
         }
 
         stage('Terraform Apply or Destroy') {
             steps {
-                script {
-                    if (params.DESTROY_INFRA) {
-                        bat """
-                            terraform destroy -auto-approve ^
-                            -var="environment=%TF_VAR_environment%" ^
-                            -var="region=%TF_VAR_region%" ^
-                            -var-file="%TF_VARS_FILE%"
-                        """
-                    } else {
-                        bat """
-                            terraform apply -auto-approve ^
-                            -var="environment=%TF_VAR_environment%" ^
-                            -var="region=%TF_VAR_region%" ^
-                            -var-file="%TF_VARS_FILE%"
-                        """
+                withCredentials([usernamePassword(credentialsId: 'aws-credentials', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    script {
+                        if (params.DESTROY_INFRA) {
+                            bat 'terraform destroy -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
+                        } else {
+                            bat 'terraform apply -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
+                        }
                     }
                 }
             }
