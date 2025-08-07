@@ -1,47 +1,53 @@
 pipeline {
-  agent any
+    agent any
 
-  parameters {
-    string(name: 'TF_VAR_environment', description: 'Enter environment (e.g., dev, stg, prod)')
-    string(name: 'TF_VAR_region', description: 'Enter AWS region (e.g., us-east-1)')
-    choice(name: 'ACTION', choices: ['plan', 'apply'], description: 'Choose Terraform action')
-  }
-
-  environment {
-    TF_VAR_environment = "${params.TF_VAR_environment}"
-    TF_VAR_region      = "${params.TF_VAR_region}"
-  }
-
-  stages {
-    stage('Terraform Init') {
-      steps {
-        bat """
-          terraform init ^
-            -backend-config=envs/%TF_VAR_environment%/backend.tfvars
-        """
-      }
+    parameters {
+        string(name: 'ENV', description: 'Environment (prod/stg/uat)')
     }
 
-    stage('Terraform Plan/Apply') {
-      steps {
-        script {
-          if (params.ACTION == 'plan') {
-            bat """
-              terraform plan ^
-                -var="environment=%TF_VAR_environment%" ^
-                -var="region=%TF_VAR_region%" ^
-                -var-file="envs/%TF_VAR_environment%/terraform.tfvars"
-            """
-          } else if (params.ACTION == 'apply') {
-            bat """
-              terraform apply -auto-approve ^
-                -var="environment=%TF_VAR_environment%" ^
-                -var="region=%TF_VAR_region%" ^
-                -var-file="envs/%TF_VAR_environment%/terraform.tfvars"
-            """
-          }
+    environment {
+        TF_VAR_environment = "${params.ENV}"
+    }
+
+    stages {
+        stage('Terraform Init') {
+            steps {
+                dir("${env.WORKSPACE}") {
+                    bat """
+                    terraform init -backend-config="envs/${TF_VAR_environment}/backend.tfvars"
+                    """
+                }
+            }
         }
-      }
+
+        stage('Terraform Validate') {
+            steps {
+                dir("${env.WORKSPACE}") {
+                    bat """
+                    terraform validate
+                    """
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir("${env.WORKSPACE}") {
+                    bat """
+                    terraform plan -var-file="envs/${TF_VAR_environment}/terraform.tfvars"
+                    """
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                dir("${env.WORKSPACE}") {
+                    bat """
+                    terraform apply -auto-approve -var-file="envs/${TF_VAR_environment}/terraform.tfvars"
+                    """
+                }
+            }
+        }
     }
-  }
 }
