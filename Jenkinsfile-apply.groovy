@@ -2,52 +2,69 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'ENV', defaultValue: '', description: 'Environment (e.g. prod, stg, dev)')
-        string(name: 'REGION', defaultValue: '', description: 'AWS region')
-        choice(name: 'ACTION', choices: ['plan', 'apply'], description: 'Terraform action')
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'stg', 'prod'], description: 'Select environment')
+        choice(name: 'AWS_REGION', choices: [
+            'us-east-1', 'us-west-1', 'us-west-2',
+            'eu-west-1', 'eu-central-1',
+            'ap-south-1', 'ap-northeast-1'
+        ], description: 'Select AWS region')
+        booleanParam(name: 'DESTROY_INFRA', defaultValue: false, description: 'Destroy infrastructure instead of applying')
+    }
+
+    environment {
+        TF_ENV       = "${params.ENVIRONMENT}"
+        TF_REGION    = "${params.AWS_REGION}"
+        TFVARS_FILE  = "envs\\${params.ENVIRONMENT}\\terraform.tfvars"
+        BACKEND_FILE = "envs\\${params.ENVIRONMENT}\\backend.tfvars"
     }
 
     stages {
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com/nenavathsrinu/aws-static-website-infra.git', branch: 'main'
+            }
+        }
+
         stage('Terraform Init') {
             steps {
-                dir("${env.WORKSPACE}") {
-                    bat """
-                    terraform init -backend-config="envs/%ENV%/backend.tfvars"
-                    """
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
+                    bat "terraform init -backend-config=\"${BACKEND_FILE}\""
                 }
             }
         }
 
         stage('Terraform Validate') {
             steps {
-                dir("${env.WORKSPACE}") {
-                    bat "terraform validate"
-                }
+                bat "terraform validate"
             }
         }
 
         stage('Terraform Plan') {
-            when {
-                expression { return params.ACTION == 'plan' || params.ACTION == 'apply' }
-            }
             steps {
-                dir("${env.WORKSPACE}") {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
                     bat """
-                    terraform plan -var="environment=%ENV%" -var="region=%REGION%" -var-file="envs/%ENV%/terraform.tfvars"
+                        terraform plan ^
+                        -var=\"environment=${TF_ENV}\" ^
+                        -var=\"region=${TF_REGION}\" ^
+                        -var-file=\"${TFVARS_FILE}\"
                     """
                 }
             }
         }
 
-        stage('Terraform Apply') {
-            when {
-                expression { return params.ACTION == 'apply' }
-            }
+        stage('Terraform Apply or Destroy') {
             steps {
-                dir("${env.WORKSPACE}") {
-                    bat """
-                    terraform apply -auto-approve -var="environment=%ENV%" -var="region=%REGION%" -var-file="envs/%ENV%/terraform.tfvars"
-                    """
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
+                    script {
+                        def tfCommand = params.DESTROY_INFRA ? 'destroy' : 'apply'
+                        bat """
+                            terraform ${tfCommand} ^
+                            -auto-approve ^
+                            -var=\"environment=${TF_ENV}\" ^
+                            -var=\"region=${TF_REGION}\" ^
+                            -var-file=\"${TFVARS_FILE}\"
+                        """
+                    }
                 }
             }
         }
