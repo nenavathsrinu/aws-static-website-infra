@@ -1,0 +1,7 @@
+aws_account = "977076879209"
+bucket_name = "my-static-site-prod-lsg"
+domain_name = "srinuawsdevops.in"
+env         = "prod"
+name        = "static-website"
+project     = "myproject"
+aws_region  = "us-east-1"
