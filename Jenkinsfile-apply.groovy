@@ -8,14 +8,11 @@ pipeline {
             'eu-west-1', 'eu-central-1',
             'ap-south-1', 'ap-northeast-1'
         ], description: 'Select AWS region')
-        booleanParam(name: 'DESTROY_INFRA', defaultValue: false, description: 'Destroy infrastructure instead of applying')
     }
 
     environment {
-        TF_ENV       = "${params.ENVIRONMENT}"
-        TF_REGION    = "${params.AWS_REGION}"
-        TFVARS_FILE  = "envs\\${params.ENVIRONMENT}\\terraform.tfvars"
-        BACKEND_FILE = "envs\\${params.ENVIRONMENT}\\backend.tfvars"
+        TF_VAR_environment = "${params.ENVIRONMENT}"
+        TF_VAR_region      = "${params.AWS_REGION}"
     }
 
     stages {
@@ -28,43 +25,29 @@ pipeline {
         stage('Terraform Init') {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
-                    bat "terraform init -backend-config=\"${BACKEND_FILE}\""
+                    bat 'terraform init -backend-config="envs/%TF_VAR_environment%/backend.tfvars"'
                 }
             }
         }
 
         stage('Terraform Validate') {
             steps {
-                bat "terraform validate"
+                bat 'terraform validate'
             }
         }
 
         stage('Terraform Plan') {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
-                    bat """
-                        terraform plan ^
-                        -var=\"environment=${TF_ENV}\" ^
-                        -var=\"region=${TF_REGION}\" ^
-                        -var-file=\"${TFVARS_FILE}\"
-                    """
+                    bat 'terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
                 }
             }
         }
 
-        stage('Terraform Apply or Destroy') {
+        stage('Terraform Apply') {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
-                    script {
-                        def tfCommand = params.DESTROY_INFRA ? 'destroy' : 'apply'
-                        bat """
-                            terraform ${tfCommand} ^
-                            -auto-approve ^
-                            -var=\"environment=${TF_ENV}\" ^
-                            -var=\"region=${TF_REGION}\" ^
-                            -var-file=\"${TFVARS_FILE}\"
-                        """
-                    }
+                    bat 'terraform apply -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
                 }
             }
         }
