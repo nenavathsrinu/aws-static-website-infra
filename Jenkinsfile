@@ -9,7 +9,7 @@ pipeline {
 
     environment {
         TF_VAR_environment = "${params.ENVIRONMENT}"
-        TF_VAR_region = "${params.AWS_REGION}"
+        TF_VAR_region      = "${params.AWS_REGION}"
     }
 
     stages {
@@ -21,19 +21,19 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                sh 'terraform init'
+                bat 'terraform init'
             }
         }
 
         stage('Terraform Validate') {
             steps {
-                sh 'terraform validate'
+                bat 'terraform validate'
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                sh 'terraform plan -var="environment=${TF_VAR_environment}" -var="region=${TF_VAR_region}"'
+                bat 'terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%"'
             }
         }
 
@@ -41,9 +41,9 @@ pipeline {
             steps {
                 script {
                     if (params.DESTROY_INFRA) {
-                        sh 'terraform destroy -auto-approve -var="environment=${TF_VAR_environment}" -var="region=${TF_VAR_region}"'
+                        bat 'terraform destroy -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%"'
                     } else {
-                        sh 'terraform apply -auto-approve -var="environment=${TF_VAR_environment}" -var="region=${TF_VAR_region}"'
+                        bat 'terraform apply -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%"'
                     }
                 }
             }
