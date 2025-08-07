@@ -40,8 +40,10 @@ pipeline {
     stage('Initialize') {
       steps {
         bat '''
+        echo =============================
         echo Selected Environment: %ENV%
         echo Selected Region: %AWS_REGION%
+        echo =============================
         '''
       }
     }
@@ -49,7 +51,7 @@ pipeline {
     stage('Terraform Init') {
       steps {
         bat '''
-        terraform init -backend-config="region=%AWS_REGION%"
+        terraform init -backend-config=env\\%ENV%\\backend.tfvars
         '''
       }
     }
@@ -63,30 +65,36 @@ pipeline {
     stage('Terraform Plan') {
       steps {
         bat '''
-        terraform plan -var="env=%ENV%" -var="region=%AWS_REGION%"
+        terraform plan -var-file=env\\%ENV%\\terraform.tfvars -var="region=%AWS_REGION%"
         '''
       }
     }
 
     stage('Terraform Apply') {
       steps {
-        input message: "Do you want to apply Terraform changes?"
+        input message: "✅ Proceed with Terraform Apply?"
         bat '''
-        terraform apply -auto-approve -var="env=%ENV%" -var="region=%AWS_REGION%"
+        terraform apply -auto-approve -var-file=env\\%ENV%\\terraform.tfvars -var="region=%AWS_REGION%"
         '''
       }
     }
 
     stage('Terraform Destroy') {
       when {
-        expression { params.ENVIRONMENT != 'prod' }  // Avoid accidental prod deletion
+        expression { return params.ENVIRONMENT != 'prod' }
       }
       steps {
-        input message: "Do you want to destroy the infrastructure?"
+        input message: "⚠️ Confirm Terraform Destroy for non-prod?"
         bat '''
-        terraform destroy -auto-approve -var="env=%ENV%" -var="region=%AWS_REGION%"
+        terraform destroy -auto-approve -var-file=env\\%ENV%\\terraform.tfvars -var="region=%AWS_REGION%"
         '''
       }
+    }
+  }
+
+  post {
+    always {
+      echo "✅ Pipeline completed for environment: ${params.ENVIRONMENT}, region: ${params.AWS_REGION}"
     }
   }
 }
