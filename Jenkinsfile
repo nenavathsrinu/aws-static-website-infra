@@ -33,7 +33,12 @@ pipeline {
 
         stage('Terraform Plan') {
             steps {
-                bat 'terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%"'
+                bat '''
+                    terraform plan ^
+                    -var="environment=%TF_VAR_environment%" ^
+                    -var="region=%TF_VAR_region%" ^
+                    -var-file="terraform.tfvars"
+                '''
             }
         }
 
@@ -41,9 +46,19 @@ pipeline {
             steps {
                 script {
                     if (params.DESTROY_INFRA) {
-                        bat 'terraform destroy -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%"'
+                        bat '''
+                            terraform destroy -auto-approve ^
+                            -var="environment=%TF_VAR_environment%" ^
+                            -var="region=%TF_VAR_region%" ^
+                            -var-file="terraform.tfvars"
+                        '''
                     } else {
-                        bat 'terraform apply -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%"'
+                        bat '''
+                            terraform apply -auto-approve ^
+                            -var="environment=%TF_VAR_environment%" ^
+                            -var="region=%TF_VAR_region%" ^
+                            -var-file="terraform.tfvars"
+                        '''
                     }
                 }
             }
