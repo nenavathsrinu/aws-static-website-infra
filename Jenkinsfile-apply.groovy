@@ -22,10 +22,12 @@ pipeline {
             }
         }
 
-        stage('Terraform Init') {
+  stage('Terraform Init') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
-                    bat 'terraform init -backend-config="envs/%TF_VAR_environment%/terraform.tfvars"'
+                withAWS(credentials: 'aws-credentials') {
+                    dir("${WORKSPACE}") {
+                        bat "terraform init -backend-config=env\\\\${params.ENVIRONMENT}\\\\backend.tfvars"
+                    }
                 }
             }
         }
