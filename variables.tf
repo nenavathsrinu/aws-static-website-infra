@@ -29,3 +29,8 @@ variable "aws_region" {
   type        = string
   default     = "us-east-1" # You can override this in terraform.tfvars
 }
+
+variable "region" {
+  description = "AWS region to deploy resources"
+  type        = string
+}
