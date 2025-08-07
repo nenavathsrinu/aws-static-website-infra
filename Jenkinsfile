@@ -2,13 +2,14 @@ pipeline {
   agent any
 
   parameters {
-    choice(name: 'ENVIRONMENT', choices: ['dev', 'stg', 'prod'], description: 'Select the deployment environment')
-    string(name: 'AWS_REGION', defaultValue: 'ap-south-1', description: 'AWS Region to deploy')
+    choice(name: 'ENVIRONMENT', choices: ['dev', 'stg', 'prod'], description: 'Environment to deploy')
+    string(name: 'AWS_REGION', defaultValue: 'ap-south-1', description: 'AWS Region')
   }
 
   environment {
-    TF_VAR_env     = "${params.ENVIRONMENT}"
-    TF_VAR_region  = "${params.AWS_REGION}"
+    TF_VAR_env    = "${params.ENVIRONMENT}"
+    TF_VAR_region = "${params.AWS_REGION}"
+    AWS_REGION    = "${params.AWS_REGION}"
   }
 
   stages {
@@ -20,49 +21,40 @@ pipeline {
 
     stage('Terraform Init') {
       steps {
-        sh """
-          terraform init \
-            -backend-config="region=${env.AWS_REGION}" \
-            -backend-config="key=state/${env.ENVIRONMENT}/${env.AWS_REGION}/terraform.tfstate"
+        bat """
+        terraform init ^
+          -backend-config="region=%AWS_REGION%" ^
+          -backend-config="key=state\\%TF_VAR_env%\\%AWS_REGION%\\terraform.tfstate"
         """
       }
     }
 
     stage('Terraform Validate') {
       steps {
-        sh "terraform validate"
+        bat "terraform validate"
       }
     }
 
     stage('Terraform Plan') {
       steps {
-        sh "terraform plan -var-file=env/${env.ENVIRONMENT}/terraform.tfvars"
+        bat "terraform plan -var-file=env\\%TF_VAR_env%\\terraform.tfvars"
       }
     }
 
     stage('Terraform Apply') {
       when {
-        expression { return params.ENVIRONMENT != 'dev' } // Optional: avoid auto-apply in dev
+        expression { return params.ENVIRONMENT != 'dev' }
       }
       steps {
-        input message: "Approve apply to ${params.ENVIRONMENT}?"
-        sh "terraform apply -auto-approve -var-file=env/${env.ENVIRONMENT}/terraform.tfvars"
-      }
-    }
-
-    stage('Terraform Destroy') {
-      when {
-        expression { return false } // Change to true if you want to allow destroy manually
-      }
-      steps {
-        sh "terraform destroy -auto-approve -var-file=env/${env.ENVIRONMENT}/terraform.tfvars"
+        input message: "Do you want to apply changes to ${params.ENVIRONMENT}?"
+        bat "terraform apply -auto-approve -var-file=env\\%TF_VAR_env%\\terraform.tfvars"
       }
     }
   }
 
   post {
     always {
-      echo "Pipeline complete for ${params.ENVIRONMENT}"
+      echo "✅ Pipeline execution finished for %TF_VAR_env%"
     }
   }
 }
