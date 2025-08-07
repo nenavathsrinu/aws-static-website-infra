@@ -21,41 +21,28 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials'
-                ]]) {
-                    bat '''
-                    set AWS_ACCESS_KEY_ID=%AWS_ACCESS_KEY_ID%
-                    set AWS_SECRET_ACCESS_KEY=%AWS_SECRET_ACCESS_KEY%
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
+                    bat """
                     terraform init ^
                       -backend-config="bucket=teerafor-state-files-by-project" ^
-                      -backend-config="key=state/%TF_VAR_environment%/%TF_VAR_region%/terraform.tfstate" ^
-                      -backend-config="region=%TF_VAR_region%" ^
+                      -backend-config="key=state/${params.ENVIRONMENT}/${params.AWS_REGION}/terraform.tfstate" ^
+                      -backend-config="region=${params.AWS_REGION}" ^
                       -backend-config="dynamodb_table=terraform-locks" ^
                       -backend-config="encrypt=true"
-                    '''
+                    """
                 }
             }
         }
 
         stage('Terraform Validate') {
             steps {
-                bat '''
-                set AWS_ACCESS_KEY_ID=%AWS_ACCESS_KEY_ID%
-                set AWS_SECRET_ACCESS_KEY=%AWS_SECRET_ACCESS_KEY%
-                terraform validate
-                '''
+                bat 'terraform validate'
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                bat '''
-                set AWS_ACCESS_KEY_ID=%AWS_ACCESS_KEY_ID%
-                set AWS_SECRET_ACCESS_KEY=%AWS_SECRET_ACCESS_KEY%
-                terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"
-                '''
+                bat 'terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
             }
         }
 
@@ -64,23 +51,19 @@ pipeline {
                 expression { return params.DESTROY_INFRA }
             }
             steps {
-                input message: "⚠️ Confirm DESTROY for *${params.ENVIRONMENT}* in *${params.AWS_REGION}*", ok: "Yes, Destroy"
+                input message: "⚠️ Confirm destroy for ${params.ENVIRONMENT} in ${params.AWS_REGION}", ok: "Yes, destroy"
             }
         }
 
         stage('Terraform Apply/Destroy') {
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials'
-                ]]) {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
                     script {
-                        def action = params.DESTROY_INFRA ? 'destroy' : 'apply'
-                        bat """
-                        set AWS_ACCESS_KEY_ID=%AWS_ACCESS_KEY_ID%
-                        set AWS_SECRET_ACCESS_KEY=%AWS_SECRET_ACCESS_KEY%
-                        terraform ${action} -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"
-                        """
+                        if (params.DESTROY_INFRA) {
+                            bat 'terraform destroy -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
+                        } else {
+                            bat 'terraform apply -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
+                        }
                     }
                 }
             }
@@ -89,20 +72,24 @@ pipeline {
 
     post {
         success {
-            slackSend(
-                channel: '#devops-alerts',
-                color: 'good',
-                message: "✅ Terraform *${params.DESTROY_INFRA ? 'destroy' : 'apply'}* succeeded for *${params.ENVIRONMENT}* in *${params.AWS_REGION}*.",
-                tokenCredentialId: 'slack-token-id'
-            )
+            echo "✅ Terraform ${params.DESTROY_INFRA ? 'destroy' : 'apply'} succeeded for ${params.ENVIRONMENT} in ${params.AWS_REGION}"
         }
         failure {
-            slackSend(
-                channel: '#devops-alerts',
-                color: 'danger',
-                message: "❌ Terraform *${params.DESTROY_INFRA ? 'destroy' : 'apply'}* failed for *${params.ENVIRONMENT}* in *${params.AWS_REGION}*.",
-                tokenCredentialId: 'slack-token-id'
-            )
+            echo "❌ Terraform ${params.DESTROY_INFRA ? 'destroy' : 'apply'} failed for ${params.ENVIRONMENT} in ${params.AWS_REGION}"
         }
+
+        // Optional: uncomment to enable email notifications
+        /*
+        success {
+            mail to: 'team@example.com',
+                 subject: "Terraform Apply Succeeded for ${params.ENVIRONMENT} in ${params.AWS_REGION}",
+                 body: "The Terraform apply was successful."
+        }
+        failure {
+            mail to: 'team@example.com',
+                 subject: "Terraform Apply Failed for ${params.ENVIRONMENT} in ${params.AWS_REGION}",
+                 body: "The Terraform apply failed. Please check the Jenkins console output."
+        }
+        */
     }
 }
