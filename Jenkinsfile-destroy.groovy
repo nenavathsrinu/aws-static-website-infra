@@ -45,20 +45,10 @@ pipeline {
 
     post {
         success {
-            slackSend(
-                channel: '#devops-alerts',
-                color: 'good',
-                message: "🧨 Terraform *destroy* succeeded for *${params.ENVIRONMENT}* in *${params.AWS_REGION}*.",
-                tokenCredentialId: 'slack-token-id'
-            )
+            echo "✅ Terraform destroy succeeded for ${params.ENVIRONMENT} in ${params.AWS_REGION}."
         }
         failure {
-            slackSend(
-                channel: '#devops-alerts',
-                color: 'danger',
-                message: "🔥 Terraform *destroy* failed for *${params.ENVIRONMENT}* in *${params.AWS_REGION}*.",
-                tokenCredentialId: 'slack-token-id'
-            )
+            echo "❌ Terraform destroy failed for ${params.ENVIRONMENT} in ${params.AWS_REGION}."
         }
     }
 }
