@@ -12,7 +12,7 @@ pipeline {
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
                 git url: 'https://github.com/nenavathsrinu/aws-static-website-infra.git', branch: 'main'
             }
@@ -20,13 +20,13 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
-                    dir("envs/${params.ENVIRONMENT}") {
+                dir("envs/${params.ENVIRONMENT}") {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
                         bat """
-                        terraform init
+                        terraform init -reconfigure
                         terraform validate
-                        terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="terraform.tfvars"
-                        terraform apply -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="terraform.tfvars"
+                        terraform plan -var-file="terraform.tfvars" -var="region=${params.AWS_REGION}"
+                        terraform apply -auto-approve -var-file="terraform.tfvars" -var="region=${params.AWS_REGION}"
                         """
                     }
                 }
