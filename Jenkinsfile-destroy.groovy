@@ -21,28 +21,41 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
-                    bat """
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-credentials'
+                ]]) {
+                    bat '''
+                    set AWS_ACCESS_KEY_ID=%AWS_ACCESS_KEY_ID%
+                    set AWS_SECRET_ACCESS_KEY=%AWS_SECRET_ACCESS_KEY%
                     terraform init ^
                       -backend-config="bucket=teerafor-state-files-by-project" ^
-                      -backend-config="key=state/${params.ENVIRONMENT}/${params.AWS_REGION}/terraform.tfstate" ^
-                      -backend-config="region=${params.AWS_REGION}" ^
+                      -backend-config="key=state/%TF_VAR_environment%/%TF_VAR_region%/terraform.tfstate" ^
+                      -backend-config="region=%TF_VAR_region%" ^
                       -backend-config="dynamodb_table=terraform-locks" ^
                       -backend-config="encrypt=true"
-                    """
+                    '''
                 }
             }
         }
 
         stage('Terraform Validate') {
             steps {
-                bat 'terraform validate'
+                bat '''
+                set AWS_ACCESS_KEY_ID=%AWS_ACCESS_KEY_ID%
+                set AWS_SECRET_ACCESS_KEY=%AWS_SECRET_ACCESS_KEY%
+                terraform validate
+                '''
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                bat 'terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
+                bat '''
+                set AWS_ACCESS_KEY_ID=%AWS_ACCESS_KEY_ID%
+                set AWS_SECRET_ACCESS_KEY=%AWS_SECRET_ACCESS_KEY%
+                terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"
+                '''
             }
         }
 
@@ -51,19 +64,23 @@ pipeline {
                 expression { return params.DESTROY_INFRA }
             }
             steps {
-                input message: "⚠️ Are you sure you want to destroy infrastructure for ${params.ENVIRONMENT} in ${params.AWS_REGION}?", ok: "Yes, destroy"
+                input message: "⚠️ Confirm DESTROY for *${params.ENVIRONMENT}* in *${params.AWS_REGION}*", ok: "Yes, Destroy"
             }
         }
 
         stage('Terraform Apply/Destroy') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-credentials'
+                ]]) {
                     script {
-                        if (params.DESTROY_INFRA) {
-                            bat 'terraform destroy -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
-                        } else {
-                            bat 'terraform apply -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
-                        }
+                        def action = params.DESTROY_INFRA ? 'destroy' : 'apply'
+                        bat """
+                        set AWS_ACCESS_KEY_ID=%AWS_ACCESS_KEY_ID%
+                        set AWS_SECRET_ACCESS_KEY=%AWS_SECRET_ACCESS_KEY%
+                        terraform ${action} -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"
+                        """
                     }
                 }
             }
