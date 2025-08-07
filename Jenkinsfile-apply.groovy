@@ -22,11 +22,11 @@ pipeline {
             }
         }
 
-  stage('Terraform Init') {
+        stage('Terraform Init') {
             steps {
                 withAWS(credentials: 'aws-credentials') {
                     dir("${WORKSPACE}") {
-                        bat "terraform init -backend-config=env\\\\${params.ENVIRONMENT}\\\\backend.tfvars"
+                        bat "terraform init -backend-config=envs\\\\${params.ENVIRONMENT}\\\\backend.tfvars"
                     }
                 }
             }
@@ -40,18 +40,28 @@ pipeline {
 
         stage('Terraform Plan') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
-                    bat 'terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
+                withAWS(credentials: 'aws-credentials') {
+                    dir("${WORKSPACE}") {
+                        bat 'terraform plan -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs\\\\%TF_VAR_environment%\\\\terraform.tfvars"'
+                    }
                 }
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
-                    bat 'terraform apply -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs/%TF_VAR_environment%/terraform.tfvars"'
+                withAWS(credentials: 'aws-credentials') {
+                    dir("${WORKSPACE}") {
+                        bat 'terraform apply -auto-approve -var="environment=%TF_VAR_environment%" -var="region=%TF_VAR_region%" -var-file="envs\\\\%TF_VAR_environment%\\\\terraform.tfvars"'
+                    }
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            echo "✅ Terraform apply completed for environment: '${params.ENVIRONMENT}' in region: '${params.AWS_REGION}'"
         }
     }
 }
